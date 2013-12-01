@@ -169,7 +169,9 @@ extern void ssdv_dec_header(ssdv_packet_info_t *info, uint8_t *packet);
 extern int encodeImage(char imgid,char Callsign[]);
 extern void sendSSDVpic(uint8_t *packet);
 extern void sendTelemetry();
-
+extern void starttimer();
+extern void stoptimer();
+extern int gettimerstatus();
 //#ifdef __cplusplus
 //}
 //#endif

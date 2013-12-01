@@ -17,31 +17,31 @@ long loopcnt=0;
 
 void initCamera() { 
  
-  Serial1.begin(38400);
+  Serial2.begin(38400);
   SendResetCmd();
   delay(1000);
  /* setPicSize();
-  while(Serial1.available()>0) {
-    incomingbyte=Serial1.read();
+  while(Serial2.available()>0) {
+    incomingbyte=Serial2.read();
   }*/
   
 //  BaudRate();
 //  delay(100);
-//  Serial1.end();
- // Serial1.begin(57600);
+//  Serial2.end();
+ // Serial2.begin(57600);
   
 }
 void takePicture(){
    StopTakePhotoCmd();
    delay(100);
-  while(Serial1.available()>0) {
-    incomingbyte=Serial1.read();
+  while(Serial2.available()>0) {
+    incomingbyte=Serial2.read();
   }
   SendTakePhotoCmd();
    //Serial.println("Start pic"); 
   delay(100);
-  while(Serial1.available()>0) {
-    incomingbyte=Serial1.read();
+  while(Serial2.available()>0) {
+    incomingbyte=Serial2.read();
   }
   loopcnt=0;
   EndFlag=0;
@@ -60,8 +60,8 @@ int getPicture(uint8_t *img) {
     SendReadDataCmd();
            
     delay(150); //try going up
-    while(Serial1.available()>0) {
-      incomingbyte=Serial1.read();
+    while(Serial2.available()>0) {
+      incomingbyte=Serial2.read();
       k++;
       if((k>5)&&(j<32)&&(!EndFlag)) {
         img[j]=incomingbyte;
@@ -78,7 +78,7 @@ int getPicture(uint8_t *img) {
       //Serial.print(img[j],HEX);//HEX
       loopcnt++;
     }
-    //Serial.println();
+    //Serial.println("Exiting getPicture");
     
   //  fprintf(stderr, "Loop Count %i\n", loopcnt);
   return EndFlag;
@@ -87,70 +87,70 @@ int getPicture(uint8_t *img) {
 
 //Send Reset command
 void SendResetCmd() {
-  Serial1.write((byte)0x56);
+  Serial2.write((byte)0x56);
    // delay (2);
-  Serial1.write((byte)0x00);
+  Serial2.write((byte)0x00);
     delay (2);
-  Serial1.write((byte)0x26);
+  Serial2.write((byte)0x26);
    // delay (2);
-  Serial1.write((byte)0x00); 
+  Serial2.write((byte)0x00); 
  // delay (2);  
 }
 
 //Send take picture command
 void SendTakePhotoCmd() {
-  Serial1.write((byte)0x56);
+  Serial2.write((byte)0x56);
     delay (1);
-  Serial1.write((byte)0x00);
+  Serial2.write((byte)0x00);
     delay (1);
-  Serial1.write((byte)0x36);
+  Serial2.write((byte)0x36);
     delay (1);
-  Serial1.write((byte)0x01);
+  Serial2.write((byte)0x01);
     delay (1);
-  Serial1.write((byte)0x00);
+  Serial2.write((byte)0x00);
     delay (1);
     
   a = 0x0000; //reset so that another picture can taken
 }
 
 void FrameSize() {
-  Serial1.write((byte)0x56);
+  Serial2.write((byte)0x56);
    
-  Serial1.write((byte)0x00);
+  Serial2.write((byte)0x00);
  
-  Serial1.write((byte)0x34);
+  Serial2.write((byte)0x34);
   
-  Serial1.write((byte)0x01);
+  Serial2.write((byte)0x01);
   
-  Serial1.write((byte)0x00); 
+  Serial2.write((byte)0x00); 
   
 }
 void setPicSize() {
-  Serial1.write((byte)0x56);
+  Serial2.write((byte)0x56);
    
-  Serial1.write((byte)0x00);
+  Serial2.write((byte)0x00);
  
-  Serial1.write((byte)0x54);
+  Serial2.write((byte)0x54);
   
-  Serial1.write((byte)0x01);
+  Serial2.write((byte)0x01);
   
-  Serial1.write((byte)0x00); 
+  Serial2.write((byte)0x00); 
   
 }
 void BaudRate() {
- Serial1.write((byte)0x56);
+ Serial2.write((byte)0x56);
    
-  Serial1.write((byte)0x00);
+  Serial2.write((byte)0x00);
     
- Serial1.write((byte)0x24);
+ Serial2.write((byte)0x24);
   
- Serial1.write((byte)0x03);
+ Serial2.write((byte)0x03);
    
-  Serial1.write((byte)0x01); 
+  Serial2.write((byte)0x01); 
     
-   Serial1.write((byte)0x1C);
+   Serial2.write((byte)0x1C);
    
- Serial1.write((byte)0x4C); 
+ Serial2.write((byte)0x4C); 
     
 }
 
@@ -159,37 +159,37 @@ void SendReadDataCmd() {
   MH=a/0x100;
   ML=a%0x100;
       
-  Serial1.write((byte)0x56);
+  Serial2.write((byte)0x56);
   
-  Serial1.write((byte)0x00);
+  Serial2.write((byte)0x00);
    
-  Serial1.write((byte)0x32);
+  Serial2.write((byte)0x32);
    
-  Serial1.write((byte)0x0c);
+  Serial2.write((byte)0x0c);
    
-  Serial1.write((byte)0x00);
+  Serial2.write((byte)0x00);
    
-  Serial1.write((byte)0x0a);
+  Serial2.write((byte)0x0a);
     
-  Serial1.write((byte)0x00);
+  Serial2.write((byte)0x00);
   
-  Serial1.write((byte)0x00);
+  Serial2.write((byte)0x00);
    
-  Serial1.write((byte)MH);
+  Serial2.write((byte)MH);
     
-  Serial1.write((byte)ML);
+  Serial2.write((byte)ML);
    
-  Serial1.write((byte)0x00);
+  Serial2.write((byte)0x00);
    
-  Serial1.write((byte)0x00);
+  Serial2.write((byte)0x00);
    
-  Serial1.write((byte)0x00);
+  Serial2.write((byte)0x00);
    
-  Serial1.write((byte)0x20);//0x20
+  Serial2.write((byte)0x20);//0x20
    
-  Serial1.write((byte)0x00);
+  Serial2.write((byte)0x00);
    
-  Serial1.write((byte)0x0a);
+  Serial2.write((byte)0x0a);
    
 
  a+=0x20; 
@@ -197,14 +197,14 @@ void SendReadDataCmd() {
 }
 
 void StopTakePhotoCmd() {
-  Serial1.write((byte)0x56);
+  Serial2.write((byte)0x56);
    
-  Serial1.write((byte)0x00);
+  Serial2.write((byte)0x00);
     
-  Serial1.write((byte)0x36);
+  Serial2.write((byte)0x36);
    
-  Serial1.write((byte)0x01);
+  Serial2.write((byte)0x01);
    
-  Serial1.write((byte)0x03);  
+  Serial2.write((byte)0x03);  
    
 }

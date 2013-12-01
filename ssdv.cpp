@@ -1430,8 +1430,10 @@ int encodeImage(char imgid,char Callsign[])
 
   while(1)
   {
-    while((c = ssdv_enc_get_packet(&ssdv)) == SSDV_FEED_ME)
+    starttimer();
+    while(((c = ssdv_enc_get_packet(&ssdv)) == SSDV_FEED_ME)&&gettimerstatus());
     {
+      starttimer();
       size_t r = getPicture(&img[0]);
 
      // if(r == 1)
@@ -1441,15 +1443,16 @@ int encodeImage(char imgid,char Callsign[])
      // }
       ssdv_enc_feed(&ssdv, img, 32);
     }
-
+    
+    stoptimer();
     if(c == SSDV_EOI)
     {
-     //Serial.println("ssdv_enc_get_packet said EOI");
+      Serial.println("ssdv_enc_get_packet said EOI");
       break;
     }
     else if(c != SSDV_OK)
     {
-     // Serial.println("ssdv_enc_get_packet failed");
+       Serial.println("ssdv_enc_get_packet failed");
       return(-1);
     }
 

@@ -9,5 +9,5 @@
 #include <stdint.h>
 
 extern void encode_rs_8(uint8_t *data, uint8_t *parity, int pad);
-extern int encodeImage(char imgid,char Callsign[]);
+
 

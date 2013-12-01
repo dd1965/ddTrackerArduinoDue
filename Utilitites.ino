@@ -5,14 +5,14 @@ ushort rtty_CRC16_checksum (byte rxByte[],int length)
   //$$PSB,0001,000000,0.0,0.0,0,0,0,0,107,26,7656*16B3     //Test string   CRC on everything between $$ and * last 4 byte is rx crc
   ushort crc=0xFFFF;
   //String ln= "Length " + String(length);
- // Serial.print(ln);
+  // Serial.print(ln);
   byte c;    
   // Calculate checksum ignoring the first two $s
   for (int i = 0; i < length-1; i++)//46
   {
     c = rxByte[i];
-  //  Serial.print(c,HEX);
-   // Serial.print(" ");
+    //  Serial.print(c,HEX);
+    // Serial.print(" ");
     ushort cr = (ushort)(c << 8);
     crc = (ushort)(crc ^ (cr));
     for (int x = 0; x < 8; x++)
@@ -23,7 +23,7 @@ ushort rtty_CRC16_checksum (byte rxByte[],int length)
         crc = (ushort) (crc << 1);
     }               
   }
-  
+
   return crc;
 }
 void encodeGold(int Telemetry)
@@ -47,7 +47,7 @@ void encodeGold(int Telemetry)
     encodeArray[9] = 0xB7;
     encodeArray[10] = 0x4D;
     encodeArray[11] = 0xB7;
-   // encodeArray[12] = 0x24;
+    // encodeArray[12] = 0x24;
   }
   else
   {//write preamble and correlation tag here
@@ -78,9 +78,74 @@ void encodeGold(int Telemetry)
     encodeArray[11] = 0x3A;
     encodeArray[12] = 0x24;
   }
+}
+// return //encodeArray;
+void shuffle(byte *buf)
+{
+  Serial.println();                               
+  for (int i = 0; i < 256; i++)
+  {
 
- // return //encodeArray;
+    cbyte=buf[i];
+    for (int bi = 0; bi < 8; bi++)
+    {
+      symbols[bi + (8 * i)]=cbyte&0x80;
+      if(symbols[bi + (8 * i)]==0x80) 
+      {
+        symbols[bi + (8 * i)]=1;
+      }
+      cbyte=cbyte<<1;
+    //  Serial.print(symbols[bi + (8 * i)]);
+    }   
+   // Serial.println();          
+  }
 
+
+  interleaver();
+  cbyte=0;
+  for (int i = 0; i < 256; i++)
+  {
+
+    for (int bi = 0; bi < 8; bi++)
+    {
+
+      bitin = symbols_interleaved[bi + (8 * i)];
+      cbyte = cbyte << 1;
+      cbyte = cbyte | bitin;
+
+      //Console.WriteLine(cbyte);
+    }
+    // Console.WriteLine(cbyte);
+    buf[i] = cbyte;
+    cbyte = 0;
+  }
+  //  deshuffle(decbuf);
 
 }
+
+
+void interleaver ()//Input symbols
+{
+
+  int i, j, k, l, P;
+
+  P = 0;
+  while (P < numbits)
+  {
+    for (k = 0; k <= 2047; k++)                        // bits reverse, ex: 0010 1110 --> 0111 0100
+    {
+      i = k;
+      j = 0;
+      for (l = 10; l >= 0; l--)                      // hard work is done here...
+      {
+        j = j | (i & 0x01) << l;
+        i = i >> 1;
+      }
+      if (j < numbits)
+        symbols_interleaved[j] = symbols[P++];        // range in interleaved table
+    }                                             // end of while, interleaved table is full
+  }
+
+}
+
 
