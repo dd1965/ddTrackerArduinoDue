@@ -1,3 +1,6 @@
+/*This has been modified from this original morse code git entry*/
+/*https://github.com/lilspikey/arduino_sketches/blob/master/morse/morse.ino*/
+/*Inclusions included extended ascii table & interface onto SPI RFM43 device by VK3TBC 12/2/2013*/
 
 #include <stdio.h>
 #include <arduino.h>

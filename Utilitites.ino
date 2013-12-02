@@ -26,6 +26,8 @@ ushort rtty_CRC16_checksum (byte rxByte[],int length)
 
   return crc;
 }
+/* Gold code idea taken from FX25 documentation*/
+
 void encodeGold(int Telemetry)
 {
   if (Telemetry == 0)
@@ -123,6 +125,9 @@ void shuffle(byte *buf)
 
 }
 
+/*Borrowed an idea and code from*/
+/*https://github.com/DanAnkers/WsprryPi/blob/master/wspr.c*/
+/*extended so that it could cater fo 2048 bits*/
 
 void interleaver ()//Input symbols
 {
