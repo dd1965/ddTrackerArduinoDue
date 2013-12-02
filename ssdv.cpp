@@ -1431,7 +1431,8 @@ int encodeImage(char imgid,char Callsign[])
   while(1)
   {
     starttimer();
-    while(((c = ssdv_enc_get_packet(&ssdv)) == SSDV_FEED_ME)&&gettimerstatus());
+    while((c = ssdv_enc_get_packet(&ssdv)) == SSDV_FEED_ME && gettimerstatus())
+    //  while(c = ssdv_enc_get_packet(&ssdv) == SSDV_FEED_ME)
     {
       starttimer();
       size_t r = getPicture(&img[0]);
@@ -1447,7 +1448,7 @@ int encodeImage(char imgid,char Callsign[])
     stoptimer();
     if(c == SSDV_EOI)
     {
-      Serial.println("ssdv_enc_get_packet said EOI");
+    //  Serial.println("ssdv_enc_get_packet said EOI");
       break;
     }
     else if(c != SSDV_OK)
@@ -1460,7 +1461,7 @@ int encodeImage(char imgid,char Callsign[])
   // Serial.print("Send Packet to TX ");
    //Serial.println(i);
    if(i==0){
-     sendTelemetry();
+    // sendTelemetry();
      
      sendSSDVpic(pkt);
    }else
@@ -1469,13 +1470,14 @@ int encodeImage(char imgid,char Callsign[])
    
     i++;
     /*Send Telemetry every 10 packets*/
-    if (i % 10 == 0){
-     sendTelemetry();
-    }
+   // if (i % 10 == 0){
+   //  sendTelemetry();
+ //   }
   }
-   fprintf(stderr, "Wrote packets %i\n", i);
+ //  fprintf(stderr, "Wrote packets %i\n", i);
    // Serial.print("Wrote packets ");
   //  Serial.println(c);
+     //sendSSDVpic(pkt);
     return(c);
 }
 

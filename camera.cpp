@@ -20,10 +20,12 @@ void initCamera() {
   Serial2.begin(38400);
   SendResetCmd();
   delay(1000);
- /* setPicSize();
+ // setPicSize();
   while(Serial2.available()>0) {
     incomingbyte=Serial2.read();
-  }*/
+   // Serial.print(incomingbyte,HEX);
+  //  Serial.print(" ");
+  }
   
 //  BaudRate();
 //  delay(100);
@@ -36,12 +38,16 @@ void takePicture(){
    delay(100);
   while(Serial2.available()>0) {
     incomingbyte=Serial2.read();
+ //   Serial.print(incomingbyte,HEX);
+  //  Serial.print(" ");
   }
   SendTakePhotoCmd();
-   //Serial.println("Start pic"); 
+//  Serial.println("Start pic"); 
   delay(100);
   while(Serial2.available()>0) {
     incomingbyte=Serial2.read();
+ //   Serial.print(incomingbyte,HEX);
+ //   Serial.print(" ");
   }
   loopcnt=0;
   EndFlag=0;
@@ -62,6 +68,8 @@ int getPicture(uint8_t *img) {
     delay(150); //try going up
     while(Serial2.available()>0) {
       incomingbyte=Serial2.read();
+     /* Serial.print(incomingbyte,HEX);
+      Serial.print(" ");*/
       k++;
       if((k>5)&&(j<32)&&(!EndFlag)) {
         img[j]=incomingbyte;
@@ -72,13 +80,13 @@ int getPicture(uint8_t *img) {
       }
     }
             
-    for(j=0;j<count;j++) {   
-      //if(img[j]<0x10)
-        //Serial.print("0");
-      //Serial.print(img[j],HEX);//HEX
+   /* for(j=0;j<count;j++) {   
+    if(img[j]<0x10)
+      Serial.print("0");
+      Serial.print(img[j],HEX);//HEX
       loopcnt++;
     }
-    //Serial.println("Exiting getPicture");
+    Serial.println("Exiting getPicture");*/
     
   //  fprintf(stderr, "Loop Count %i\n", loopcnt);
   return EndFlag;

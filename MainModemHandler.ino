@@ -86,6 +86,7 @@ byte testStr[256];
 byte eol[2];
 
 short seq=0;
+char seqimg=0;
 char bufseq[32]; 
 byte flags[80];
 byte encodeArray[12];
@@ -108,7 +109,7 @@ byte cbyte;
 #define SAMPLES_PER_CYCLE 1020
 #define SAMPLES_PER_CYCLE_FIXEDPOINT (SAMPLES_PER_CYCLE<<20)
 #define TICKS_PER_CYCLE (float)((float)SAMPLES_PER_CYCLE_FIXEDPOINT/(float)SAMPLE_RATE)
-#define FIVE_SEC_TIMER 5*SAMPLE_RATE;
+#define FIVE_SEC_TIMER 10*SAMPLE_RATE;
 uint32_t timer5 = FIVE_SEC_TIMER;
 // to represent 1020 we need 10 bits
 // Our fixed point format will be 10P22 = 32 bits
@@ -217,14 +218,16 @@ void loop()
  
   sendTelemetry();
  // Serial.println(gps.time.value());
-  encodeImage(seq,callsign);
+  encodeImage(seqimg,callsign);
+  delay(20000);
+  seqimg++;
  // transmiton=1;
   //sendTelemetry();
  // memset(testStr, 0x7E, sizeof(testStr));
  // sendbitdata(testStr,256);
   //   delay(3000);
  
-  delay(2000);
+  
   // sendTelemetry();
 
 
@@ -313,7 +316,7 @@ void sendTelemetry(){
   for(int i=0;i<test.length();i++){
     testStr[i+2]=test[i];                 
   }
-  Serial.println(test);
+//  Serial.println(test);
   encode_rs_8(&testStr[0], &testStr[223], 0);
   // sendbitdata(flags,sizeof(flags));
   sendbitdata(flags,20);//Preamble
