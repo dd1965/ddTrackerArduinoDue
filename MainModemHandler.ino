@@ -1,4 +1,3 @@
-
 #include "config.h"
 #include <TinyGPS++.h>
 #include <OneWire.h>
@@ -124,12 +123,13 @@ uint32_t toneRegister[No_of_tones];
 #define ONE_WIRE_BUS2 3
 OneWire oneWire(ONE_WIRE_BUS);
 OneWire oneWireo(ONE_WIRE_BUS2);
+DeviceAddress insideThermometer;
+DeviceAddress outsideThermometer;
 // Pass our oneWire reference to Dallas Temperature. 
 DallasTemperature sensors(&oneWire);
 DallasTemperature sensorso(&oneWireo);
 // arrays to hold device address
-DeviceAddress insideThermometer;
-DeviceAddress outsideThermometer;
+
 char tbuf[32];
 char cwstring[56];
 
@@ -200,43 +200,34 @@ void setup()
    //Temperature Sensor
    sensors.begin();
    if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Inside Device 0"); 
-   if (!sensors.getAddress(outsideThermometer, 0)) Serial.println("Unable to find address for Outside Device 0"); 
-   sensors.setResolution(insideThermometer, 9);
-    sensors.setResolution(outsideThermometer, 9);
+   sensors.setResolution(12);
+  // Serial.println(sensors.getAddress(insideThermometer,0),HEX);
+   
+   sensorso.begin();  
+   if (!sensorso.getAddress(outsideThermometer, 0)) Serial.println("Unable to find address for Outside Device 0"); 
+    sensorso.setResolution(12);
+   // Serial.println(sensorso.getAddress(outsideThermometer,0),HEX);
+  
     initSPI();
 }
 
 void loop()
 {
 
-  takePicture();
-  
- //$$PSB,sequence,time,lat,long,altitude,speed,satellites,lock,temp_in,temp_out,Vin*CHECKSUM\n 
- //   6      4      8   8    9     5       3        2       1     3        3     3 =56bytes
-  
-  //test=part2+getgpsTime()+separator+getlat()+separator+getlong()+separator+getalt()+separator+getspeed()+separator+getnumsatellites()+separator+getage()+part3;
- 
-  sendTelemetry();
- // Serial.println(gps.time.value());
-  encodeImage(seqimg,callsign);
-  delay(20000);
+ // takePicture();->
+  sendTelemetry(); 
+//  encodeImage(seqimg,callsign);->
   seqimg++;
- // transmiton=1;
-  //sendTelemetry();
- // memset(testStr, 0x7E, sizeof(testStr));
- // sendbitdata(testStr,256);
-  //   delay(3000);
- 
-  
-  // sendTelemetry();
 
 
 }
 void sendTelemetry(){
+  while(send_buffer.getSize()!=0){;}
   memset(testStr, 0, sizeof(testStr));
-  sensors.requestTemperatures();
-  tempin = getTemperature(insideThermometer);
-  tempout = getTemperature(outsideThermometer);
+ // sensors.requestTemperatures();
+  getTemperature();
+
+ // Serial.println(tempout);
   voltage=getVoltage();
  // getGPSdata();
   starttimer();
@@ -379,13 +370,13 @@ void sendbitdata(byte* toSend,int length)
   //Serial.println(toSend.length());
   //Serial.println(send_buffer.getSize());
   
-  while(send_buffer.getSize()>9000){
+ /* while(send_buffer.getSize()>9000){
     delay(2);
    // transmiton=1;
-  }
-  if(send_buffer.getSize()<512){
+  }*/
+/*  if(send_buffer.getSize()<512){
    // transmiton=0;
-  }
+  }*/
   for (int i = 0; i < length; i++)
   {
     //  noInterrupts();
@@ -421,7 +412,7 @@ void sendAX25tone1200BAUD(int bt){
 void TC4_Handler()//TC4_Handler()
 {
   TC_GetStatus(TC1, 1);
-  
+  noInterrupts();
   if(timerstarted){
     timer++;
     if (timer == timer5)
@@ -437,6 +428,7 @@ if(send_morse){
     timer10ms=0;
   }
 }
+  
   if (bufcnt!=0){
 
     // We need to get the status to clear it and allow the interrupt to fire again
@@ -468,7 +460,7 @@ if(send_morse){
 
       inbytei = (byte)(inbytei >> 1);
       K++;
-      bufcnt=70;
+      bufcnt=70;//70
     }
     else{
       K=8;
@@ -485,10 +477,11 @@ if(send_morse){
         //
         inbytei = (byte)(inbytei >> 1);
         K++;    
-        bufcnt=70;           
+        bufcnt=70;      //70     
       }   
     }
   }
+  interrupts();
 }
 void TC4_Handler4800()
 {
@@ -573,35 +566,40 @@ void selecttable(){
 
   previoussentbit = bti;
 }
-String getTemperature(DeviceAddress deviceAddress)
+void getTemperature()
 {
- //char buf[16];
-  // method 1 - slower
-  //Serial.print("Temp C: ");
-  //Serial.print(sensors.getTempC(deviceAddress));
-  //Serial.print(" Temp F: ");
-  //Serial.print(sensors.getTempF(deviceAddress)); // Makes a second call to getTempC and then converts to Fahrenheit
- 
-  // method 2 - faster
-  float tempC = sensors.getTempC(deviceAddress);
+ //  sensorso.begin(); 
+ //  if (!sensorso.getAddress(outsideThermometer, 0)) Serial.println("Unable to find address for Outside Device 0"); 
+ //   sensorso.setResolution(12);
+    sensorso.requestTemperatures(); 
+  float tempC = sensorso.getTempC(outsideThermometer);
+   //Serial.println(tempC);
+  if(tempC>99.0f){ tempC=99.0f;}
+  if(tempC<-99.0f){tempC=-99.0f;}
   sprintf(tbuf,"%+03.0f",tempC);
-  
-  Serial.print("Temp C: ");
-  Serial.print(tbuf);
-  Serial.print(" Temp F: ");
-  Serial.println(DallasTemperature::toFahrenheit(tempC)); // Converts tempC to Fahrenheit
-  return tbuf;
+  tempout=tbuf;
+  // sensors.begin();
+  //  if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Inside Device 0"); 
+  // sensors.setResolution(12);
+   sensors.requestTemperatures(); 
+  tempC = sensors.getTempC(insideThermometer);
+  if(tempC>99.0f){ tempC=99.0f;}
+  if(tempC<-99.0f){tempC=-99.0f;}
+  sprintf(tbuf,"%+03.0f",tempC);
+  tempin=tbuf;
+  Serial.println(tempin);
+  Serial.println(tempout);
 }
 
 String getVoltage(){
   analogReadResolution(10);
   int sensorValue = analogRead(A0);
   double voltage= 2*sensorValue * (3.3 / 1024.0)*100;
-  Serial.print("ADC 10-bit (default) : ");
-  Serial.println(analogRead(A0));
-  Serial.println(voltage);
+//  Serial.print("ADC 10-bit (default) : ");
+ // Serial.println(analogRead(A0));
+//  Serial.println(voltage);
   sprintf(tbuf,"%03.0f",voltage);
-  Serial.println(tbuf);
+//  Serial.println(tbuf);
   return tbuf;
 }
 void initSPI(){

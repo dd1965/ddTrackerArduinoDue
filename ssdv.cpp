@@ -1470,9 +1470,9 @@ int encodeImage(char imgid,char Callsign[])
    
     i++;
     /*Send Telemetry every 10 packets*/
-   // if (i % 10 == 0){
-   //  sendTelemetry();
- //   }
+    if (i % 10 == 0){
+      sendTelemetry();
+    }
   }
  //  fprintf(stderr, "Wrote packets %i\n", i);
    // Serial.print("Wrote packets ");

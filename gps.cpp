@@ -84,7 +84,7 @@ boolean getGPSdata() {
       }
       else
       {
-        Serial.print(("INVALID"));
+        //Serial.print(("INVALID"));
         return false;
       }
     }
