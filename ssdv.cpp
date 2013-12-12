@@ -1470,7 +1470,7 @@ int encodeImage(char imgid,char Callsign[])
    
     i++;
     /*Send Telemetry every 10 packets*/
-    if (i % 10 == 0){
+    if (i % 5 == 0){
       sendTelemetry();
     }
   }

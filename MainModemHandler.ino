@@ -11,6 +11,7 @@ extern int sendMorse(char *msg,int Length);
 #include <stdio.h>
 #include <ByteBuffer.h>
 #include <SPI.h>
+#include <AD9850.h>
 //TinyGPSPlus gps;
 // Reuses timer setup and sinewave creation based on a work at rcarduino.blogspot.com & RCArduino DDS Sinewave for Arduino Due.
 
@@ -108,8 +109,9 @@ byte cbyte;
 #define SAMPLES_PER_CYCLE 1020
 #define SAMPLES_PER_CYCLE_FIXEDPOINT (SAMPLES_PER_CYCLE<<20)
 #define TICKS_PER_CYCLE (float)((float)SAMPLES_PER_CYCLE_FIXEDPOINT/(float)SAMPLE_RATE)
-#define FIVE_SEC_TIMER 10*SAMPLE_RATE;
-uint32_t timer5 = FIVE_SEC_TIMER;
+#define TEN_SEC_TIMER 10*SAMPLE_RATE
+#define tenmscount SAMPLE_RATE/50
+uint32_t timer10 = TEN_SEC_TIMER;
 // to represent 1020 we need 10 bits
 // Our fixed point format will be 10P22 = 32 bits
 
@@ -129,9 +131,12 @@ DeviceAddress outsideThermometer;
 DallasTemperature sensors(&oneWire);
 DallasTemperature sensorso(&oneWireo);
 // arrays to hold device address
-
 char tbuf[32];
 char cwstring[56];
+
+//Setup for DDS
+AD9850 ad(7, 6, 5); // w_clk, fq_ud, d7
+int RESET = 4;
 
 // fill the table with the phase increment values we require to generate the tone 1200Hz and 2200Hz
 void createToneIndex()
@@ -161,9 +166,10 @@ void setup()
 {
   pinMode(led, OUTPUT);  
   digitalWrite(led, HIGH);
-  delay(5000);
+ // delay(5000);
   digitalWrite(led, LOW);
   Serial.begin(9600);
+  Serial.println(tenmscount);
   send_buffer.init(10240);
   encodeGold(0);
   for(int f=0;f<2;f++) eol[f]=0x0A;
@@ -209,23 +215,26 @@ void setup()
    // Serial.println(sensorso.getAddress(outsideThermometer,0),HEX);
   
     initSPI();
+   // initDDS();
 }
 
 void loop()
 {
-
- // takePicture();->
-  sendTelemetry(); 
-//  encodeImage(seqimg,callsign);->
+  getTemperature();
+  sendTelemetry();  
+  takePicture();  
+ // transmiton=0; 
+  encodeImage(seqimg,callsign);
+  while(send_buffer.getSize()!=0){;} 
   seqimg++;
 
 
 }
 void sendTelemetry(){
-  while(send_buffer.getSize()!=0){;}
+ // while(send_buffer.getSize()!=0){;}
   memset(testStr, 0, sizeof(testStr));
  // sensors.requestTemperatures();
-  getTemperature();
+ // getTemperature();
 
  // Serial.println(tempout);
   voltage=getVoltage();
@@ -340,9 +349,10 @@ void sendTelemetry(){
    for(int i=0;i<test.length();i++){
        cwstring[i]=test[i];
     }
-    send_morse=true;
+     send_morse=true;
   // sendMorse(cwstring,56);
-
+  //  while(send_buffer.getSize()!=0){;}
+  
 }
 void starttimer(){
   timerstarted=true;
@@ -361,7 +371,9 @@ void sendSSDVpic(uint8_t *packet)
   shuffle(&packet[0]);
   sendbitdata(packet,256);
   sendbitdata(flags,5);
-
+//  if(send_buffer.getSize()>1280){
+ //    transmiton=1;
+ // }
 }
 void sendbitdata(byte* toSend,int length)
 {
@@ -412,10 +424,10 @@ void sendAX25tone1200BAUD(int bt){
 void TC4_Handler()//TC4_Handler()
 {
   TC_GetStatus(TC1, 1);
-  noInterrupts();
+ // noInterrupts();
   if(timerstarted){
     timer++;
-    if (timer == timer5)
+    if (timer == timer10)
     {
       timerstarted=false;
       timer=0;
@@ -423,12 +435,13 @@ void TC4_Handler()//TC4_Handler()
   }
 if(send_morse){
   timer10ms++;
-  if(timer10ms==960){
+  if(timer10ms==tenmscount){//960  
+     timer10ms=0;
     if(sendMorse(cwstring,56)==1) send_morse=false;
-    timer10ms=0;
-  }
+  }  
+  //return;
 }
-  
+  if(transmiton==0) return;
   if (bufcnt!=0){
 
     // We need to get the status to clear it and allow the interrupt to fire again
@@ -481,7 +494,7 @@ if(send_morse){
       }   
     }
   }
-  interrupts();
+ // interrupts();
 }
 void TC4_Handler4800()
 {
@@ -602,7 +615,24 @@ String getVoltage(){
 //  Serial.println(tbuf);
   return tbuf;
 }
+void ddsUP(){
+  ad.up();
+}
+void ddsDOWN(){
+  ad.down();
+}
+void initDDS(){
+
+
+ ad.setfreq(10100000);
+}
 void initSPI(){
+  SPI.begin(10);
+  SPI.setBitOrder(10,LSBFIRST) ;
+ // SPI.setClockDivider(0,64 ) ;
+}  
+
+void initSPI1(){
   SPI.begin(10);
   SPI.setBitOrder(10,MSBFIRST) ;
   //Set Max Power

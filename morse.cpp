@@ -6,7 +6,8 @@
 #include <arduino.h>
 #include <stdint.h>
 #include <SPI.h>
-
+extern void ddsUP();
+extern void ddsDOWN();
 #define LED_PIN 13
 #define BUZZER_PIN 4
 
@@ -18,10 +19,10 @@
 #define STATE_SPACE 3
 #define STATE_GAP 4
 
-#define GAP_LENGTH 100
-#define DOT_LENGTH 100
-#define DASH_LENGTH 300
-#define SPACE_LENGTH 300
+#define GAP_LENGTH 50
+#define DOT_LENGTH 50
+#define DASH_LENGTH 150
+#define SPACE_LENGTH 150
 
 #define MESSAGE_MAX 512
 
@@ -89,19 +90,32 @@ void change_state(struct state *pstate, int new_state) {
   pstate->timer = millis();
   pstate->state = new_state;
 }
-
+//Send morse to DDS chip on SPI BUS
+void sendSPI(double frequency){
+  // Arduino Code
+int32_t freq = frequency * 4294967295/125000000;  // note 125 MHz clock on 9850
+  for (int b=0; b<4; b++, freq>>=8) {
+     SPI.transfer(10,(freq&0xFF), SPI_CONTINUE);
+  }
+  SPI.transfer(10,0x00);  // Final control byte, all 0 for 9850 chip
+}
 void morse_pulse_on() {
   digitalWrite(LED_PIN, HIGH);
-  SPI.transfer(10, 0x87, SPI_CONTINUE);
-  SPI.transfer(10, 0x09);
+   sendSPI(10100000);
+  //SPI.transfer(10, 0x87, SPI_CONTINUE);
+  //SPI.transfer(10, 0x09);
+ // ddsUP();
+
   //tone(BUZZER_PIN, BUZZER_FREQUENCY); 
   // Serial.print("High ");
 }
 
 void morse_pulse_off() {
   digitalWrite(LED_PIN, LOW);
-  SPI.transfer(10, 0x87, SPI_CONTINUE);
-  SPI.transfer(10, 0x01);
+   sendSPI(0);
+ // SPI.transfer(10, 0x87, SPI_CONTINUE);
+ // SPI.transfer(10, 0x01);
+   //ddsDOWN();
   //  Serial.print("LOW ");
   //noTone(BUZZER_PIN);
 }

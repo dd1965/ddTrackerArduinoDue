@@ -23,10 +23,10 @@ void initCamera() {
  // setPicSize();
   while(Serial2.available()>0) {
     incomingbyte=Serial2.read();
-   // Serial.print(incomingbyte,HEX);
-  //  Serial.print(" ");
+   Serial.print(incomingbyte,HEX);
+   Serial.print(" ");
   }
-  
+  Serial.print("Init ");
 //  BaudRate();
 //  delay(100);
 //  Serial2.end();
@@ -38,8 +38,8 @@ void takePicture(){
    delay(100);
   while(Serial2.available()>0) {
     incomingbyte=Serial2.read();
- //   Serial.print(incomingbyte,HEX);
-  //  Serial.print(" ");
+//    Serial.print(incomingbyte,HEX);
+ //   Serial.print(" ");
   }
   SendTakePhotoCmd();
 //  Serial.println("Start pic"); 
