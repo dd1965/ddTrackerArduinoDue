@@ -12,34 +12,29 @@ extern int sendMorse(char *msg,int Length);
 #include <ByteBuffer.h>
 #include <SPI.h>
 #include <AD9850.h>
-//TinyGPSPlus gps;
-// Reuses timer setup and sinewave creation based on a work at rcarduino.blogspot.com & RCArduino DDS Sinewave for Arduino Due.
 
 // This is a telemetry sender for 1200 baud created by VK3TBC.
-// This is a test harness only and not complete. No GPS interface yet. Can send pictures at 1200 baud with dummy telemetry packet.
 // Features 1200 baud digital modulator & experimental 4800 baud modulator
 // Sample rate is 84Khz to the audio DAC. 1023 point sine wave (10bit)
 // Constructs a simple frame for Telemetry and sends it.
+// Two digitial temperature sennsor
+// A to D to monitor bat voltage
+// GPS to receive location data
+// DDS to transmit QRP on 30M 10.100Mhz using grid locator and CW as transmission mode.
+// VK3TBC synchronous protocol with correlation tags for syncing, 256byte buffer with RS error correction and also with bit shuffling for noise error burst correction
 // Added a buffer for audio samples that need to be transmitted.
-// Original licence condition kept.
-
+// 
+// Original licence condition kept as it is based on some work for DDS and timer use (Note:now, highly modified)
 // RCArduino DDS Sinewave by RCArduino is licensed under a Creative Commons Attribution 3.0 Unported License.
 // For helpful background information on Arduino Due Timer Configuration, refer to the following link
 // thanks to Sebastian Vik
 // http://arduino.cc/forum/index.php?action=post;topic=130423.15;num_replies=20
-
 // For background information on the DDS Technique see
 // http://interface.khm.de/index.php/lab/experiments/arduino-dds-sinewave-generator/
-
 // For audio sketches making extensive use of DDS Techniques, search the RCArduino Blog
 // for the tags Audio or synth
 
-// These are the clock frequencies available to the timers /2,/8,/32,/128
-// 84Mhz/2 = 42.000 MHz
-// 84Mhz/8 = 10.500 MHz
-// 84Mhz/32 = 2.625 MHz
-// 84Mhz/128 = 656.250 KHz
-// for 88khz sample 42Mhz/88Khz = 500 fits evenly.
+
 // use a simple filter on the DAC.
 
 // Experimental 4800 baud raised cosine filter constants
@@ -56,6 +51,7 @@ volatile boolean timerstarted=false;
 volatile uint32_t timer=0;
 volatile uint16_t timer10ms=0;
 volatile boolean send_morse=false;
+volatile uint8_t cwstringlength=0;
 ByteBuffer send_buffer;
 //End 4800 baud
 
@@ -71,6 +67,9 @@ volatile int K=8;
 volatile  byte inbytei;
 int sendtone = 0;
 String startHdr="$CQ DE ";
+String QRP =" QRP Balloon ";
+String ALTI =" Altitude ";
+String GRID =" Locator ";
 byte hdrbyte[4];
 String test="VK3TBC-1,0000,00:00:00,0.0,0.0,0,0,0,0,0,0,0,Test";
 String part2="VK3TBC-1,0000,";
@@ -132,7 +131,7 @@ DallasTemperature sensors(&oneWire);
 DallasTemperature sensorso(&oneWireo);
 // arrays to hold device address
 char tbuf[32];
-char cwstring[56];
+char cwstring[100];
 
 //Setup for DDS
 AD9850 ad(7, 6, 5); // w_clk, fq_ud, d7
@@ -141,8 +140,8 @@ int RESET = 4;
 // fill the table with the phase increment values we require to generate the tone 1200Hz and 2200Hz
 void createToneIndex()
 {
-    toneRegister[0] = 1200*TICKS_PER_CYCLE;
-    toneRegister[1] = 2200*TICKS_PER_CYCLE;
+  toneRegister[0] = 1200*TICKS_PER_CYCLE;
+  toneRegister[1] = 2200*TICKS_PER_CYCLE;
 }
 
 // Create a table to hold pre computed sinewave, the table has a resolution of 600 samples
@@ -166,7 +165,7 @@ void setup()
 {
   pinMode(led, OUTPUT);  
   digitalWrite(led, HIGH);
- // delay(5000);
+  // delay(5000);
   digitalWrite(led, LOW);
   Serial.begin(9600);
   Serial.println(tenmscount);
@@ -177,45 +176,29 @@ void setup()
   createToneIndex();
   createSineTable();
   for(int f=0;f<20;f++) flags[f]=0x7E;
-  initCamera();
-  /* turn on the timer clock in the power management controller */
-  pmc_set_writeprotect(false);
-  pmc_enable_periph_clk(ID_TC4);
-
-  /* we want wavesel 01 with RC */
-  TC_Configure(/* clock */TC1,/* channel */1, TC_CMR_WAVE | TC_CMR_WAVSEL_UP_RC | TC_CMR_TCCLKS_TIMER_CLOCK1);
-  TC_SetRC(TC1, 1, 500); // sets <> 44.1 Khz interrupt rate // 500 for 84Khz //438 for 4800 baud ie 42Mhz/96Khz
-  TC_Start(TC1, 1);
-
-  // enable timer interrupts on the timer
-  TC1->TC_CHANNEL[1].TC_IER=TC_IER_CPCS;
-  TC1->TC_CHANNEL[1].TC_IDR=~TC_IER_CPCS;
-
-  /* Enable the interrupt in the nested vector interrupt controller */
-  /* TC4_IRQn where 4 is the timer number * timer channels (3) + the channel number (=(1*3)+1) for timer1 channel1 */
-  NVIC_EnableIRQ(TC4_IRQn);
-
+  initCamera(); 
+  initTimer();
   // this is a cheat - enable the DAC
   analogWrite(DAC1,0);
- /* memset(testStr, 0x7E, sizeof(testStr));
-  for(int i=0;i<100;i++){
-    sendbitdata(testStr,256);
-  }*/
+  /* memset(testStr, 0x7E, sizeof(testStr));
+   for(int i=0;i<100;i++){
+   sendbitdata(testStr,256);
+   }*/
   initGPS();
-   digitalWrite(led, HIGH);
-   //Temperature Sensor
-   sensors.begin();
-   if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Inside Device 0"); 
-   sensors.setResolution(12);
+  digitalWrite(led, HIGH);
+  //Temperature Sensor
+  sensors.begin();
+  if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Inside Device 0"); 
+  sensors.setResolution(12);
   // Serial.println(sensors.getAddress(insideThermometer,0),HEX);
-   
-   sensorso.begin();  
-   if (!sensorso.getAddress(outsideThermometer, 0)) Serial.println("Unable to find address for Outside Device 0"); 
-    sensorso.setResolution(12);
-   // Serial.println(sensorso.getAddress(outsideThermometer,0),HEX);
-  
-    initSPI();
-   // initDDS();
+
+  sensorso.begin();  
+  if (!sensorso.getAddress(outsideThermometer, 0)) Serial.println("Unable to find address for Outside Device 0"); 
+  sensorso.setResolution(12);
+  // Serial.println(sensorso.getAddress(outsideThermometer,0),HEX);
+
+  initSPI();
+  // initDDS();
 }
 
 void loop()
@@ -223,44 +206,35 @@ void loop()
   getTemperature();
   sendTelemetry();  
   takePicture();  
- // transmiton=0; 
+  // transmiton=0; 
   encodeImage(seqimg,callsign);
-  while(send_buffer.getSize()!=0){;} 
+  while(send_buffer.getSize()!=0){
+    ;
+  } 
   seqimg++;
 
 
 }
 void sendTelemetry(){
- // while(send_buffer.getSize()!=0){;}
+  // while(send_buffer.getSize()!=0){;}
   memset(testStr, 0, sizeof(testStr));
- // sensors.requestTemperatures();
- // getTemperature();
+  // sensors.requestTemperatures();
+  // getTemperature();
 
- // Serial.println(tempout);
+  // Serial.println(tempout);
   voltage=getVoltage();
- // getGPSdata();
+  // getGPSdata();
   starttimer();
   while(!getGPSdata()&&timerstarted);//||getage()!="1");//Wait for GPS data & add timer elapesed here.  
   stoptimer();
   test=callsign+seqnostr+getgpsTime()+getlat()+getlong()+getalt()+getspeed()+getnumsatellites()+getage()+tempin+tempout+voltage;
- // seqNumStr = String(seq++, DEC);
+  // seqNumStr = String(seq++, DEC);
   seq++;
   sprintf(bufseq,"%04d:",seq);
   for(int i =0;i<4;i++){
     test[i+6]=bufseq[i];
   }
   if (seq==10000) seq=0;
-  //Serial.println(seqNumStr);
- /* for(int i=0;i < seqNumStr.length();i++){
-    test.setCharAt(12-i,seqNumStr.charAt(seqNumStr.length()-1-i));
-  }
-  //test.setCharAt(9,seqNumStr.charAt(0));
-  // test.getBytes(testStr,test.length());
-  for(int i=0;i<test.length();i++){
-    testStr[i]=test[i];
-  }
- */
- 
 
   crc=rtty_CRC16_checksum(testStr,test.length());
 
@@ -288,35 +262,15 @@ void sendTelemetry(){
   }
 
 
-  //Serial.println(sizeof(encodeArray));
-  //Serial.println(enc.length());
 
-  // Serial.print(enc[i],HEX);
-
-
-  //Serial.println(sizeof(enc));
-  /*sendbitdata(flags,20);
-   sendbitdata(flags,20);
-   sendbitdata(flags,20);
-   */
   memset(testStr, 0xAA, sizeof(testStr));
-/*
-  for(int i=0;i<test.length();i++){
-    testStr[i+4]=test[i];                  //Create space for the $$$$
-  }
-  for(int i=0;i<4;i++){
-    testStr[test.length()+i+4]=crcbyte[i];
-  }
-  for(int i=0;i<4;i++){
-    testStr[i]=hdrbyte[i];
-  }
-  testStr[test.length()+8]=eol[0];*/
+
   testStr[0]=0x24;
   testStr[1]=0x24;
   for(int i=0;i<test.length();i++){
     testStr[i+2]=test[i];                 
   }
-//  Serial.println(test);
+  //  Serial.println(test);
   encode_rs_8(&testStr[0], &testStr[223], 0);
   // sendbitdata(flags,sizeof(flags));
   sendbitdata(flags,20);//Preamble
@@ -325,34 +279,28 @@ void sendTelemetry(){
   shuffle(&testStr[0]);
   sendbitdata(testStr,256); //Data
 
-  //sendbitdata(crcbyte,4);
-  //sendbitdata(eol,1);
-  //sendbitdata(high);
-  //sendbitdata(low);
   sendbitdata(flags,5); //Tail
-  /* sendbitdata(flags,sizeof(flags));
-   sendbitdata(flags,sizeof(flags));
-   sendbitdata(flags,sizeof(flags));
-   sendbitdata(flags,sizeof(flags));
-   sendbitdata(flags,sizeof(flags));
-   sendbitdata(flags,sizeof(flags));
-   sendbitdata(flags,sizeof(flags));
-   sendbitdata(flags,sizeof(flags));
-   sendbitdata(flags,sizeof(flags));
-   sendbitdata(flags,20);*/
-   
-   test=startHdr+callsign+separator+seqnostr+separator+getgpsTime()+separator+getlat()+separator+getlong()+separator+getalt();
-   sprintf(bufseq,"%04d:",seq);
+
+  test=startHdr+callsign+separator+seqnostr+separator+getgpsTime()+separator+getlat()+separator+getlong()+separator+getalt();
+  sprintf(bufseq,"%04d:",seq);
+  test=startHdr+callsign+separator+seqnostr+QRP+GRID+getGrid()+ALTI+getalt();
+  Serial.print("CW string ");
+  Serial.print(test);
+  Serial.print(" ");
+  Serial.print(test.length());
+  Serial.println();
   for(int i =0;i<4;i++){
+    //  test[i+14]=bufseq[i];
     test[i+14]=bufseq[i];
   }
-   for(int i=0;i<test.length();i++){
-       cwstring[i]=test[i];
-    }
-     send_morse=true;
+  for(int i=0;i<test.length();i++){
+    cwstring[i]=test[i];
+  }
+  cwstringlength=test.length();
+  send_morse=true;
   // sendMorse(cwstring,56);
   //  while(send_buffer.getSize()!=0){;}
-  
+
 }
 void starttimer(){
   timerstarted=true;
@@ -371,9 +319,9 @@ void sendSSDVpic(uint8_t *packet)
   shuffle(&packet[0]);
   sendbitdata(packet,256);
   sendbitdata(flags,5);
-//  if(send_buffer.getSize()>1280){
- //    transmiton=1;
- // }
+  //  if(send_buffer.getSize()>1280){
+  //    transmiton=1;
+  // }
 }
 void sendbitdata(byte* toSend,int length)
 {
@@ -381,14 +329,14 @@ void sendbitdata(byte* toSend,int length)
   byte inbyte;
   //Serial.println(toSend.length());
   //Serial.println(send_buffer.getSize());
-  
- /* while(send_buffer.getSize()>9000){
-    delay(2);
+
+  /* while(send_buffer.getSize()>9000){
+   delay(2);
    // transmiton=1;
-  }*/
-/*  if(send_buffer.getSize()<512){
+   }*/
+  /*  if(send_buffer.getSize()<512){
    // transmiton=0;
-  }*/
+   }*/
   for (int i = 0; i < length; i++)
   {
     //  noInterrupts();
@@ -424,7 +372,7 @@ void sendAX25tone1200BAUD(int bt){
 void TC4_Handler()//TC4_Handler()
 {
   TC_GetStatus(TC1, 1);
- // noInterrupts();
+  // noInterrupts();
   if(timerstarted){
     timer++;
     if (timer == timer10)
@@ -433,14 +381,14 @@ void TC4_Handler()//TC4_Handler()
       timer=0;
     }      
   }
-if(send_morse){
-  timer10ms++;
-  if(timer10ms==tenmscount){//960  
-     timer10ms=0;
-    if(sendMorse(cwstring,56)==1) send_morse=false;
-  }  
-  //return;
-}
+  if(send_morse){
+    timer10ms++;
+    if(timer10ms==tenmscount){//960  
+      timer10ms=0;
+      if(sendMorse(cwstring, cwstringlength)==1) send_morse=false;
+    }  
+    //return;
+  }
   if(transmiton==0) return;
   if (bufcnt!=0){
 
@@ -494,7 +442,7 @@ if(send_morse){
       }   
     }
   }
- // interrupts();
+  // interrupts();
 }
 void TC4_Handler4800()
 {
@@ -518,7 +466,7 @@ void TC4_Handler4800()
 
       inbytei = (byte)(inbytei >> 1);
       K++;
-     // waveIndex=0;
+      // waveIndex=0;
       bufcnt=20;
 
     }
@@ -537,7 +485,7 @@ void TC4_Handler4800()
         //
         inbytei = (byte)(inbytei >> 1);
         K++; 
-     //   waveIndex=0;   
+        //   waveIndex=0;   
         bufcnt=20;           
       }   
     }
@@ -548,7 +496,8 @@ void selecttable(){
   txshreg <<= 1;
   if (bti == 1) txshreg |= 1;
   if ((txshreg & 0x20000) == 0x20000) txshreg ^= 0x0021;
-  if ((txshreg & 0x40000) == 0x40000) bti = 1; else bti= 0; 
+  if ((txshreg & 0x40000) == 0x40000) bti = 1; 
+  else bti= 0; 
   if (previoussentbit == 1)
   {
 
@@ -581,23 +530,31 @@ void selecttable(){
 }
 void getTemperature()
 {
- //  sensorso.begin(); 
- //  if (!sensorso.getAddress(outsideThermometer, 0)) Serial.println("Unable to find address for Outside Device 0"); 
- //   sensorso.setResolution(12);
-    sensorso.requestTemperatures(); 
+  //  sensorso.begin(); 
+  //  if (!sensorso.getAddress(outsideThermometer, 0)) Serial.println("Unable to find address for Outside Device 0"); 
+  //   sensorso.setResolution(12);
+  sensorso.requestTemperatures(); 
   float tempC = sensorso.getTempC(outsideThermometer);
-   //Serial.println(tempC);
-  if(tempC>99.0f){ tempC=99.0f;}
-  if(tempC<-99.0f){tempC=-99.0f;}
+  //Serial.println(tempC);
+  if(tempC>99.0f){ 
+    tempC=99.0f;
+  }
+  if(tempC<-99.0f){
+    tempC=-99.0f;
+  }
   sprintf(tbuf,"%+03.0f",tempC);
   tempout=tbuf;
   // sensors.begin();
   //  if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Inside Device 0"); 
   // sensors.setResolution(12);
-   sensors.requestTemperatures(); 
+  sensors.requestTemperatures(); 
   tempC = sensors.getTempC(insideThermometer);
-  if(tempC>99.0f){ tempC=99.0f;}
-  if(tempC<-99.0f){tempC=-99.0f;}
+  if(tempC>99.0f){ 
+    tempC=99.0f;
+  }
+  if(tempC<-99.0f){
+    tempC=-99.0f;
+  }
   sprintf(tbuf,"%+03.0f",tempC);
   tempin=tbuf;
   Serial.println(tempin);
@@ -608,11 +565,11 @@ String getVoltage(){
   analogReadResolution(10);
   int sensorValue = analogRead(A0);
   double voltage= 2*sensorValue * (3.3 / 1024.0)*100;
-//  Serial.print("ADC 10-bit (default) : ");
- // Serial.println(analogRead(A0));
-//  Serial.println(voltage);
+  //  Serial.print("ADC 10-bit (default) : ");
+  // Serial.println(analogRead(A0));
+  //  Serial.println(voltage);
   sprintf(tbuf,"%03.0f",voltage);
-//  Serial.println(tbuf);
+  //  Serial.println(tbuf);
   return tbuf;
 }
 void ddsUP(){
@@ -624,13 +581,38 @@ void ddsDOWN(){
 void initDDS(){
 
 
- ad.setfreq(10100000);
+  ad.setfreq(10100000);
 }
 void initSPI(){
   SPI.begin(10);
   SPI.setBitOrder(10,LSBFIRST) ;
- // SPI.setClockDivider(0,64 ) ;
+  // SPI.setClockDivider(0,64 ) ;
 }  
+void initTimer()
+{
+  // These are the clock frequencies available to the timers /2,/8,/32,/128
+// 84Mhz/2 = 42.000 MHz
+// 84Mhz/8 = 10.500 MHz
+// 84Mhz/32 = 2.625 MHz
+// 84Mhz/128 = 656.250 KHz
+// for 88khz sample 42Mhz/88Khz = 500 fits evenly.
+  /* turn on the timer clock in the power management controller */
+  pmc_set_writeprotect(false);
+  pmc_enable_periph_clk(ID_TC4);
+
+  /* we want wavesel 01 with RC */
+  TC_Configure(/* clock */TC1,/* channel */1, TC_CMR_WAVE | TC_CMR_WAVSEL_UP_RC | TC_CMR_TCCLKS_TIMER_CLOCK1);
+  TC_SetRC(TC1, 1, 500); // sets <> 44.1 Khz interrupt rate // 500 for 84Khz //438 for 4800 baud ie 42Mhz/96Khz
+  TC_Start(TC1, 1);
+
+  // enable timer interrupts on the timer
+  TC1->TC_CHANNEL[1].TC_IER=TC_IER_CPCS;
+  TC1->TC_CHANNEL[1].TC_IDR=~TC_IER_CPCS;
+
+  /* Enable the interrupt in the nested vector interrupt controller */
+  /* TC4_IRQn where 4 is the timer number * timer channels (3) + the channel number (=(1*3)+1) for timer1 channel1 */
+  NVIC_EnableIRQ(TC4_IRQn);
+}
 
 void initSPI1(){
   SPI.begin(10);
@@ -638,40 +620,41 @@ void initSPI1(){
   //Set Max Power
   SPI.transfer(10, 0xED, SPI_CONTINUE);
   SPI.transfer(10, 0x07);
-  
+
   //Set to Unmodulated Carrier
   SPI.transfer(10, 0xF1, SPI_CONTINUE);
   SPI.transfer(10, 0x00);
-  
- //Set Deviation
+
+  //Set Deviation
   SPI.transfer(10, 0xF2, SPI_CONTINUE);
   SPI.transfer(10, 0x38);
- 
+
   //Set offet
   SPI.transfer(10, 0xF3, SPI_CONTINUE);
   SPI.transfer(10, 0x00);
   SPI.transfer(10, 0xF4, SPI_CONTINUE);
   SPI.transfer(10, 0x00);
-  
- //Set no hopping
+
+  //Set no hopping
   SPI.transfer(10, 0xF9, SPI_CONTINUE);
   SPI.transfer(10, 0x00);
   SPI.transfer(10, 0xFA, SPI_CONTINUE);
   SPI.transfer(10, 0x00);
-  
+
   //Set Frequency 434.650Mhz
   SPI.transfer(10, 0xF5, SPI_CONTINUE);
   SPI.transfer(10, 0x53);
-  
+
   SPI.transfer(10, 0xF6, SPI_CONTINUE);
   SPI.transfer(10, 0x74);
-  
+
   SPI.transfer(10, 0xF7, SPI_CONTINUE);
   SPI.transfer(10, 0x40);
-  
+
   SPI.transfer(10, 0x87, SPI_CONTINUE);
   SPI.transfer(10, 0x09);
 }
+
 
 
 

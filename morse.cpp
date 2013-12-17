@@ -246,7 +246,7 @@ int sendMorse(char *msg,int Length) {
       message[i]=msg[i];      
     }
     // Serial.println("Initiail");
-    message_len=56;
+    message_len=Length;//56
   }
   if(char_num >= message_len){  
     morse.state == STATE_IDLE; 
